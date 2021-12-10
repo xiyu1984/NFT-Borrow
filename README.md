@@ -5,6 +5,8 @@ Something interesting will be happened in metaverse, but the current standard fo
 
 I believe that in the future metaverse world, the rental of digital assets is a very common situation, so I am ready to study how to provide a better service based on the existing NFT standard.
 
+First, I'll try make NFT666 from NFT721(https://eips.ethereum.org/EIPS/eip-721).
+
 ## Getting started
 
 To get started with this template:

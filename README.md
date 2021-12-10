@@ -1,4 +1,4 @@
-# Rust Smart Contract Template
+# Rust Smart Contract For NFT666
 
 ## Description
 Something interesting will be happened in metaverse, but the current standard for non-fungible tokens may not be able to adapt to some interesting situations. For example, if someone wants to lend an exceptionally valuable digital asset in the virtual world, to a friend, the existing standards do not guarantee that his friend will return it.

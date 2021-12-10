@@ -1,0 +1,1 @@
+near deploy other.monkeyluffyd.testnet --wasmFile ./res/*.wasm

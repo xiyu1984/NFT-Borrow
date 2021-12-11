@@ -20,3 +20,13 @@ near create-account other.monkeyluffyd.testnet --masterAccount monkeyluffyd.test
 near call other.monkeyluffyd.testnet new '{"contract_meta": {"spec": "hello666", "name": "myNFT-666", "symbol": "PLANCK", "icon": "", "base_uri": "", "reference": "", "reference_hash": "12345678"}}' --account-id other.monkeyluffyd.testnet
 
 near view other.monkeyluffyd.testnet get_contract_meta_data
+
+near view other.monkeyluffyd.testnet usageOf '{"token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}'
+
+near view other.monkeyluffyd.testnet ownerOf '{"token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}'
+
+near view other.monkeyluffyd.testnet balanceOf '{"account_id" : "other.monkeyluffyd.testnet"}'
+
+near call other.monkeyluffyd.testnet mint \
+ '{"asset_rights": {"ownership": "other.monkeyluffyd.testnet", "usage_rights" : "monkeyluffyd.testnet"}, "token_metadata": {"title": "hello", "description": "world", "media": "May", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
+ --account-id other.monkeyluffyd.testnet

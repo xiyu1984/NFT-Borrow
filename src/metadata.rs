@@ -30,3 +30,30 @@ pub struct TokenMetaData {
     pub reference: Option<String>, // URL to an off-chain JSON file with more info.
     pub reference_hash: Option<Base64VecU8>, // Base64-encoded sha256 hash of JSON from reference field. Required if `reference` is included.
 }
+
+impl TokenMetaData{
+    pub fn to_hex_string(&self) -> String{
+        let mut s = String::new();
+        if let Some(tt) = self.title.clone() {
+            s += &tt;
+        }
+
+        if let Some(description) = self.description.clone() {
+            s += &description;
+        }
+
+        if let Some(media) = self.media.clone() {
+            s += &media;
+        }
+
+        if let Some(extra) = self.extra.clone() {
+            s += &extra;
+        }
+
+        if let Some(reference) = self.reference.clone() {
+            s += &reference;
+        }
+
+        s
+    }
+}

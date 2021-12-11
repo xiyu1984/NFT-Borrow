@@ -25,6 +25,8 @@ near view other.monkeyluffyd.testnet usageOf '{"token_id" : "4c33352ee21a5f3bf79
 
 near view other.monkeyluffyd.testnet ownerOf '{"token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}'
 
+5d93d2a82d608c16cbf7215f92fd47e46417e7782b9887b4afc7ebe3e57240d3
+
 near view other.monkeyluffyd.testnet balanceOf '{"account_id" : "other.monkeyluffyd.testnet"}'
 
 near call other.monkeyluffyd.testnet mint \

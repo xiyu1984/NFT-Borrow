@@ -68,6 +68,12 @@ pub trait NFTBorrow{
     fn usageOf(&self, token_id: String)->AccountId;
 }
 
+pub trait NFTMetaData{
+    fn name(&self) -> String;
+    fn symbol(&self) -> String;
+    fn tokenURI(&self, token_id: String) -> String;
+}
+
 #[near_bindgen]
 impl Contract {
     // ADD CONTRACT METHODS HERE
@@ -83,6 +89,10 @@ impl Contract {
             tokens: LookupMap::new(StorageRecord::Tokens),
             approvals: LookupMap::new(StorageRecord::Approvals),
         }
+    }
+
+    pub fn totalSupply(&self)-> u64{
+        self.total_supply
     }
 
     pub fn balanceOf(&self, account_id: AccountId)-> u64{
@@ -174,6 +184,31 @@ impl NFTBorrow for Contract{
             val.usage_rights
         }else{
             env::panic_str("The token_id dose not exist!");
+        }
+    }
+}
+
+#[near_bindgen]
+impl NFTMetaData for Contract{
+    fn name(&self) ->String{
+        self.contract_meta.name.clone()
+    }
+
+    fn symbol(&self) ->String{
+        self.contract_meta.symbol.clone()
+    }
+
+    fn tokenURI(&self, token_id: String)->String{
+        let v = self.tokens.get(&token_id);
+
+        if let Some(token_meta) = v {
+            if let Some(media_uri) = token_meta.media {
+                media_uri
+            }else{
+                "".to_string()
+            }
+        }else{
+            env::panic_str("None of the token_id");
         }
     }
 }

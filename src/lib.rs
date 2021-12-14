@@ -170,6 +170,28 @@ impl Contract {
         }
     }
 
+    pub fn transferFrom(&mut self, from: AccountId, to: AccountId, token_id: String){
+        if !env::is_valid_account_id(to.as_bytes()) {
+            env::panic_str("Invalid `to` address!");
+        }
+
+        let asset_rights = self.owner_ship.get(&token_id);
+        // token without approves
+        if let Some(ar) = asset_rights {
+            
+        }else{
+            // token approved
+            let asset_approve = self.approvals.get(&token_id);
+            if let Some(ar) = asset_approve {
+                
+            }else{
+                
+            }
+        }
+
+
+    }
+
     // for test interfaces
     pub fn get_contract_meta_data(&self) -> metadata::ContractMetaData{
         self.contract_meta.clone()

@@ -177,19 +177,69 @@ impl Contract {
 
         let asset_rights = self.owner_ship.get(&token_id);
         // token without approves
-        if let Some(ar) = asset_rights {
-            
+        if let Some(mut art) = asset_rights {
+            // if in ownership, the token can only be transfered from the `predecessor_account_id`
+            // that is, the `from` must be the same as the `predecessor_account_id`
+            assert_eq!(env::predecessor_account_id(), from, "Unauthorized");
+            // and the owner of the token must be the same as `from`
+            assert_eq!(from, art.ownership, "Unauthorized");
+
+            // update `self.assets_own_info`
+            let mut cur_owned_tokens = self.assets_own_info.get(&from);
+            if let Some(mut cur_o_t) = cur_owned_tokens {
+                // delete from current owner
+                cur_o_t.remove(&token_id);
+                self.assets_own_info.insert(&from, &cur_o_t);
+
+                // add into new owner
+                let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
+                    UnorderedSet::new(StorageRecord::AssetsOwnTable {
+                        account_hash: env::sha256(to.as_bytes()),
+                    })
+                });
+                new_owned_tokens.insert(&token_id);
+                self.assets_own_info.insert(&to, &new_owned_tokens);
+
+            }else{
+                env::panic_str("There's a bug, because someone has the ownership, but the asset is not existed in the asset_own_info table!");
+            }
+
+            // update `self.owner_ship`
+            art.ownership = to;
+            self.owner_ship.insert(&token_id, &art);
+
         }else{
             // token approved
             let asset_approve = self.approvals.get(&token_id);
-            if let Some(ar) = asset_approve {
-                
+            if let Some(aprv) = asset_approve {
+                // The token can only be transfered from `AssetApprove::from` to `AssetApprove::to`
+                assert_eq!(aprv.from, from, "`from` not equal!");
+                assert_eq!(aprv.to, to, "`to` not equal!");
+
+                // add into new owner
+                let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
+                    UnorderedSet::new(StorageRecord::AssetsOwnTable {
+                        account_hash: env::sha256(to.as_bytes()),
+                    })
+                });
+                new_owned_tokens.insert(&token_id);
+                self.assets_own_info.insert(&to, &new_owned_tokens);
+
+                // update `self.owner_ship`
+                // the usage_rights not change
+                let art = AssetRights{
+                    ownership: to,
+                    usage_rights: aprv.usage_rights,
+                };
+                self.owner_ship.insert(&token_id, &art);
+
+                // delete from approves
+                self.approvals.remove(&token_id);
+
             }else{
-                
+                env::panic_str("Token not exist!");
             }
         }
-
-
     }
 
     // for test interfaces

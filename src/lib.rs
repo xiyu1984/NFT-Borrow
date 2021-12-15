@@ -17,12 +17,18 @@ pub struct AssetRights{
     usage_rights: AccountId,
 }
 
-#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-#[serde(crate = "near_sdk::serde")]
-pub struct AssetApprove{
-    from: AccountId,
-    to: AccountId,
-    usage_rights: AccountId,
+// #[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+// #[serde(crate = "near_sdk::serde")]
+// pub struct AssetApprove{
+//     from: AccountId,
+//     to: AccountId,
+//     usage_rights: AccountId,
+// }
+
+#[derive(PartialEq)]
+enum Authority{
+    From,
+    Approved,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]
@@ -32,6 +38,7 @@ pub enum StorageRecord{
     AssetsUsageInfo,
     Tokens,
     Approvals,
+    UsageApprovals,
     AssetsOwnTable{account_hash: Vec<u8>},
     AssetsUsageTable{account_hash: Vec<u8>},
 }
@@ -61,7 +68,10 @@ pub struct Contract {
     tokens: LookupMap<String, metadata::TokenMetaData>,
 
     // <TokenID, ..>
-    approvals: LookupMap<String, AssetApprove>,
+    approvals: LookupMap<String, AccountId>,
+
+    // <TokenID, ..>
+    usage_approvals: LookupMap<String, AccountId>,
 }
 
 pub trait NFTBorrow{
@@ -72,6 +82,20 @@ pub trait NFTMetaData{
     fn name(&self) -> String;
     fn symbol(&self) -> String;
     fn tokenURI(&self, token_id: String) -> String;
+}
+
+// For NFT Usage
+pub trait NFTUsage{
+    /// @notice Transfer the usage right to someone else, 
+    /// the `msg.sender` must have the usage right of the token
+    /// @dev 
+    /// @param usage_id The address of the next user
+    /// @param token_id The ID of the token
+    fn transferUsageFrom(&mut self, from: AccountId, to: AccountId, token_id: String);
+
+    fn approveUsage(&mut self, approved: AccountId, token_id: String);
+
+    fn getUsageApproved(&self, token_id: String) ->AccountId;
 }
 
 #[near_bindgen]
@@ -88,6 +112,7 @@ impl Contract {
             assets_usage_info: LookupMap::new(StorageRecord::AssetsUsageInfo),
             tokens: LookupMap::new(StorageRecord::Tokens),
             approvals: LookupMap::new(StorageRecord::Approvals),
+            usage_approvals: LookupMap::new(StorageRecord::UsageApprovals),
         }
     }
 
@@ -175,76 +200,127 @@ impl Contract {
             env::panic_str("Invalid `to` address!");
         }
 
-        let asset_rights = self.owner_ship.get(&token_id);
+        let mut art = self.owner_ship.get(&token_id).expect("`token_id` not exist!");
         // token without approves
-        if let Some(mut art) = asset_rights {
-            // if in ownership, the token can only be transfered from the `predecessor_account_id`
-            // that is, the `from` must be the same as the `predecessor_account_id`
-            assert_eq!(env::predecessor_account_id(), from, "Unauthorized");
-            // and the owner of the token must be the same as `from`
-            assert_eq!(from, art.ownership, "Unauthorized");
 
-            // update `self.assets_own_info`
-            let mut cur_owned_tokens = self.assets_own_info.get(&from);
-            if let Some(mut cur_o_t) = cur_owned_tokens {
-                // delete from current owner
-                cur_o_t.remove(&token_id);
-                self.assets_own_info.insert(&from, &cur_o_t);
+        // the owner of the token must be the same as `from`
+        assert_eq!(from, art.ownership, "Ownership Unauthorized");
 
-                // add into new owner
-                let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
-                    UnorderedSet::new(StorageRecord::AssetsOwnTable {
-                        account_hash: env::sha256(to.as_bytes()),
-                    })
-                });
-                new_owned_tokens.insert(&token_id);
-                self.assets_own_info.insert(&to, &new_owned_tokens);
+        // if in ownership, the `from` must be the same as the `predecessor_account_id`
+        // if not, the `predecessor_account_id` must be in the `self.approvals` of the token
+        let pre_account = env::predecessor_account_id();
 
-            }else{
-                env::panic_str("There's a bug, because someone has the ownership, but the asset is not existed in the asset_own_info table!");
+        // the order of the arms is important
+        let authority = match pre_account{
+            _ if pre_account == from =>{
+                Authority::From
+            },
+            _ if self.approvals.get(&token_id).expect("Caller Unauthorized: 1!") == pre_account =>{
+                Authority::Approved
+            },
+            _ =>{
+                env::panic_str("Caller Unauthorized: 2");
             }
+        };
+
+        // update `self.assets_own_info`
+        let mut cur_owned_tokens = self.assets_own_info.get(&from);
+        if let Some(mut cur_o_t) = cur_owned_tokens {
+            // delete from current owner
+            cur_o_t.remove(&token_id);
+            self.assets_own_info.insert(&from, &cur_o_t);
+
+            // add into new owner
+            let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
+                UnorderedSet::new(StorageRecord::AssetsOwnTable {
+                    account_hash: env::sha256(to.as_bytes()),
+                })
+            });
+            new_owned_tokens.insert(&token_id);
+            self.assets_own_info.insert(&to, &new_owned_tokens);
 
             // update `self.owner_ship`
             art.ownership = to;
             self.owner_ship.insert(&token_id, &art);
 
+            // delete from approved
+            self.approvals.remove(&token_id);
+
         }else{
-            // token approved
-            let asset_approve = self.approvals.get(&token_id);
-            if let Some(aprv) = asset_approve {
-                // The token can only be transfered from `AssetApprove::from` to `AssetApprove::to`
-                assert_eq!(aprv.from, from, "`from` not equal!");
-                assert_eq!(aprv.to, to, "`to` not equal!");
-
-                // add into new owner
-                let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
-                    UnorderedSet::new(StorageRecord::AssetsOwnTable {
-                        account_hash: env::sha256(to.as_bytes()),
-                    })
-                });
-                new_owned_tokens.insert(&token_id);
-                self.assets_own_info.insert(&to, &new_owned_tokens);
-
-                // update `self.owner_ship`
-                // the usage_rights not change
-                let art = AssetRights{
-                    ownership: to,
-                    usage_rights: aprv.usage_rights,
-                };
-                self.owner_ship.insert(&token_id, &art);
-
-                // delete from approves
-                self.approvals.remove(&token_id);
-
-            }else{
-                env::panic_str("Token not exist!");
-            }
+            env::panic_str("There's a bug, because someone has the ownership, but the asset dose not existed in the asset_own_info table!");
         }
+    }
+
+    pub fn approve(&mut self, approved: AccountId, token_id: String){
+        let owner = self.owner_ship.get(&token_id).expect("Token does not exist!");
+
+        assert_eq!(env::predecessor_account_id(), owner.ownership, "Ownership Unauthorized");
+
+        self.approvals.insert(&token_id, &approved);
+    }
+
+    pub fn getApproved(&self, token_id: String) -> AccountId{
+        self.approvals.get(&token_id).expect("token is not approved!")
     }
 
     // for test interfaces
     pub fn get_contract_meta_data(&self) -> metadata::ContractMetaData{
         self.contract_meta.clone()
+    }
+}
+
+#[near_bindgen]
+impl NFTUsage for Contract{
+    fn transferUsageFrom(&mut self, from: AccountId, to: AccountId, token_id: String){
+        if !env::is_valid_account_id(to.as_bytes()){
+            env::panic_str("Invalid usage account id!");
+        }
+        
+        let mut asset_right = self.owner_ship.get(&token_id).expect("token dose not exist!");
+
+        assert_eq!(from, asset_right.usage_rights, "Unauthorized");
+
+        let pre_account = env::predecessor_account_id();
+        
+        if pre_account != from{
+            if self.usage_approvals.get(&token_id).expect("") != pre_account{
+                env::panic_str("Caller Unauthorized");
+            }
+        }
+
+        let mut cur_usage_tokens = self.assets_usage_info.get(&from).expect("There's a bug, because someone has the usage_right, but the asset does not existed in the asset_usage_info table!");
+
+        // delete from current usage
+        cur_usage_tokens.remove(&token_id);
+        self.assets_usage_info.insert(&from, &cur_usage_tokens);
+
+        // add into new usage
+        let mut new_usage_tokens = self.assets_usage_info.get(&to).unwrap_or_else(||{
+            UnorderedSet::new(StorageRecord::AssetsUsageTable{
+                account_hash: env::sha256(to.as_bytes()),
+            })
+        });
+        new_usage_tokens.insert(&token_id);
+        self.assets_usage_info.insert(&to, &new_usage_tokens);
+
+        // change usage_rights
+        asset_right.usage_rights = to;
+        self.owner_ship.insert(&token_id, &asset_right);
+
+        // delete from approved
+        self.usage_approvals.remove(&token_id);
+    }
+
+    fn approveUsage(&mut self, approved: AccountId, token_id: String){
+        let owner = self.owner_ship.get(&token_id).expect("token does not exist!");
+
+        assert_eq!(env::predecessor_account_id(), owner.usage_rights, "Usage Unauthorized");
+
+        self.usage_approvals.insert(&token_id, &approved);
+    }
+
+    fn getUsageApproved(&self, token_id: String) ->AccountId{
+        self.usage_approvals.get(&token_id).expect("token does not exist!")
     }
 }
 

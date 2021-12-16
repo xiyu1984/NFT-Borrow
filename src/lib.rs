@@ -41,6 +41,7 @@ pub enum StorageRecord{
     UsageApprovals,
     AssetsOwnTable{account_hash: Vec<u8>},
     AssetsUsageTable{account_hash: Vec<u8>},
+    LeasingPeriod,
 }
 
 #[near_bindgen]
@@ -72,6 +73,9 @@ pub struct Contract {
 
     // <TokenID, ..>
     usage_approvals: LookupMap<String, AccountId>,
+
+    // <TokenID, u64(the time up block_height)>
+    leasing_period: LookupMap<String, u64>,
 }
 
 pub trait NFTBorrow{
@@ -87,7 +91,8 @@ pub trait NFTMetaData{
 // For NFT Usage
 pub trait NFTUsage{
     /// @notice Transfer the usage right to someone else, 
-    /// the `msg.sender` must have the usage right of the token
+    /// the `msg.sender` must have the usage right of the token. 
+    /// If you are the owner of the token, use `lend_usage_to` or you may be not able to get the usage back!
     /// @dev 
     /// @param usage_id The address of the next user
     /// @param token_id The ID of the token
@@ -96,6 +101,25 @@ pub trait NFTUsage{
     fn approveUsage(&mut self, approved: AccountId, token_id: String);
 
     fn getUsageApproved(&self, token_id: String) ->AccountId;
+
+    /// @notice The owner lend his token to someone else, the `predecessor_account_id` must be the token owner.
+    /// The `usage_rights` must belong to the owner.
+    /// @dev 
+    /// @param to The address of the next user
+    /// @param token_id The ID of the token
+    /// @param period The rental period of the leasing. The owner can `get_usage_back` after `env::block_height() + period`
+    fn lend_usage_to(&mut self, to: AccountId, token_id: String, period: u64);
+
+    /// @notice The borrower returns the token to the owner, the `predecessor_account_id` must be the token user.
+    /// @dev 
+    /// @param token_id The ID of the token
+    fn usage_return(&mut self, token_id: String);
+
+    /// @notice Get the leasing period of token_id.
+    /// @dev 
+    /// @param token_id The ID of the token
+    /// @returns time up block_height
+    fn get_leasing_period(&self, token_id: String) -> u64;
 }
 
 #[near_bindgen]
@@ -113,6 +137,7 @@ impl Contract {
             tokens: LookupMap::new(StorageRecord::Tokens),
             approvals: LookupMap::new(StorageRecord::Approvals),
             usage_approvals: LookupMap::new(StorageRecord::UsageApprovals),
+            leasing_period: LookupMap::new(StorageRecord::LeasingPeriod),
         }
     }
 
@@ -321,6 +346,93 @@ impl NFTUsage for Contract{
 
     fn getUsageApproved(&self, token_id: String) ->AccountId{
         self.usage_approvals.get(&token_id).expect("token does not exist!")
+    }
+
+    fn lend_usage_to(&mut self, to: AccountId, token_id: String, period: u64){
+        if !env::is_valid_account_id(to.as_bytes()){
+            env::panic_str("Invalid `to` account!");
+        }
+        
+        let pre_account = env::predecessor_account_id();
+
+        let mut art = self.owner_ship.get(&token_id).expect("token does not exist!");
+
+        if !((art.ownership == pre_account) && (art.usage_rights == pre_account))
+        {
+            env::panic_str("Lend Unauthorized!");
+        }
+
+        let mut cur_usage_tokens = self.assets_usage_info.get(&art.usage_rights).expect("There's a bug, because someone has the usage_right, but the asset does not existed in the asset_usage_info table!");
+
+        // delete from current usage
+        cur_usage_tokens.remove(&token_id);
+        self.assets_usage_info.insert(&art.usage_rights, &cur_usage_tokens);
+
+        // add into new usage
+        let mut new_usage_tokens = self.assets_usage_info.get(&to).unwrap_or_else(||{
+            UnorderedSet::new(StorageRecord::AssetsUsageTable{
+                account_hash: env::sha256(to.as_bytes()),
+            })
+        });
+        new_usage_tokens.insert(&token_id);
+        self.assets_usage_info.insert(&to, &new_usage_tokens);
+
+        // change usage_rights
+        art.usage_rights = to;
+        self.owner_ship.insert(&token_id, &art);
+
+        // delete from approved
+        self.usage_approvals.remove(&token_id);
+
+        // add leasing record
+        self.leasing_period.insert(&token_id, &(env::block_height() + period));
+    }
+
+    fn usage_return(&mut self, token_id: String){
+        let pre_account = env::predecessor_account_id();
+
+        let mut art = self.owner_ship.get(&token_id).expect("token does not exist!");
+
+        if pre_account != art.usage_rights{
+            if pre_account != art.ownership{
+                env::panic_str("Return Unauthorized!");
+            }else{
+                let token_lease_period = self.leasing_period.get(&token_id).expect("No leasing record!");
+                if env::block_height() <= token_lease_period{
+                    env::panic_str("Return Unauthorized. Not time up!");
+                }
+            }
+        }
+
+        let mut cur_usage_tokens = self.assets_usage_info.get(&art.usage_rights).expect("There's a bug, because someone has the usage_right, but the asset does not existed in the asset_usage_info table!");
+
+        // delete from current usage
+        cur_usage_tokens.remove(&token_id);
+        self.assets_usage_info.insert(&art.usage_rights, &cur_usage_tokens);
+
+        // add into new usage
+        let mut new_usage_tokens = self.assets_usage_info.get(&art.ownership).unwrap_or_else(||{
+            UnorderedSet::new(StorageRecord::AssetsUsageTable{
+                account_hash: env::sha256(art.ownership.as_bytes()),
+            })
+        });
+        new_usage_tokens.insert(&token_id);
+        self.assets_usage_info.insert(&art.ownership, &new_usage_tokens);
+
+        // change usage_rights
+        art.usage_rights = art.ownership.clone();
+        self.owner_ship.insert(&token_id, &art);
+
+        // delete from approved
+        self.usage_approvals.remove(&token_id);
+
+        // add leasing record
+        self.leasing_period.remove(&token_id);
+
+    }
+
+    fn get_leasing_period(&self, token_id: String)->u64{
+        self.leasing_period.get(&token_id).expect("token is not lent")
     }
 }
 

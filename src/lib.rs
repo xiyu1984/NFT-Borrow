@@ -296,6 +296,7 @@ impl Contract {
 
 #[near_bindgen]
 impl NFTUsage for Contract{
+    #[private]
     fn transferUsageFrom(&mut self, from: AccountId, to: AccountId, token_id: String){
         if !env::is_valid_account_id(to.as_bytes()){
             env::panic_str("Invalid usage account id!");
@@ -336,6 +337,7 @@ impl NFTUsage for Contract{
         self.usage_approvals.remove(&token_id);
     }
 
+    #[private]
     fn approveUsage(&mut self, approved: AccountId, token_id: String){
         let owner = self.owner_ship.get(&token_id).expect("token does not exist!");
 
@@ -344,6 +346,7 @@ impl NFTUsage for Contract{
         self.usage_approvals.insert(&token_id, &approved);
     }
 
+    #[private]
     fn getUsageApproved(&self, token_id: String) ->AccountId{
         self.usage_approvals.get(&token_id).expect("token does not exist!")
     }

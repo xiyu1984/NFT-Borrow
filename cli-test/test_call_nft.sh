@@ -36,8 +36,8 @@ near view nft.monkeyluffyd.testnet tokenURI '{"token_id": "79fa45feb72a9cd7ed453
 
 #transfer
 near call nft.monkeyluffyd.testnet transferFrom \
- '{"from": "monkeyluffyd.testnet", "to": "nft.monkeyluffyd.testnet", "token_id": "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}' \
-  --account-id nft.monkeyluffyd.testnet
+ '{"from": "nft.monkeyluffyd.testnet", "to": "monkeyluffyd.testnet", "token_id": "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}' \
+  --account-id monkeyluffyd.testnet
 
 #approve
 near call nft.monkeyluffyd.testnet approve \
@@ -46,7 +46,7 @@ near call nft.monkeyluffyd.testnet approve \
 
  near view nft.monkeyluffyd.testnet getApproved '{"token_id" : "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
 
-#Usage#######################################################
+#Usage Transfer. private currently#######################################################
 
 #transfer
 near call nft.monkeyluffyd.testnet transferUsageFrom \
@@ -59,3 +59,13 @@ near call nft.monkeyluffyd.testnet approveUsage \
  --account_id monkeyluffyd.testnet
 
  near view nft.monkeyluffyd.testnet getUsageApproved '{"token_id" : "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
+
+#Usage leasing###############################################################
+near view nft.monkeyluffyd.testnet get_leasing_period '{"token_id" : "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
+
+near call nft.monkeyluffyd.testnet lend_usage_to \
+ '{"to" : "nft.monkeyluffyd.testnet", "token_id" : "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca", "period" : 100}' \
+ --account_id monkeyluffyd.testnet
+
+near call nft.monkeyluffyd.testnet usage_return '{"token_id": "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}' \
+ --account_id nft.monkeyluffyd.testnet

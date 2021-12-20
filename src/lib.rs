@@ -1,13 +1,17 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, BorshStorageKey};
+use near_sdk::{env, near_bindgen, BorshStorageKey, Gas, Promise, PromiseResult};
 use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
 use near_sdk::PanicOnDefault;
+use near_sdk::json_types::{Base64VecU8};
 // use near_sdk::json_types::{U128};
 
 mod metadata;
 mod nft_666_token;
+
+const GAS_FOR_FUNCTION_CALL: Gas = Gas(5_000_000_000_000);
+const GAS_FOR_CALLBACK: Gas = Gas(5_000_000_000_000);
 
 #[near_bindgen]
 #[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
@@ -276,6 +280,40 @@ impl Contract {
         }
     }
 
+    /// @notice Transfers the ownership of an NFT from one address to another address
+    /// @dev Throws unless `msg.sender` is the current owner, an authorized
+    ///  operator, or the approved address for this NFT. Throws if `_from` is
+    ///  not the current owner. Throws if `_to` is the zero address. Throws if
+    ///  `_tokenId` is not a valid NFT. When transfer is complete, this function
+    ///  checks if `_to` is a smart contract (code size > 0). If so, it calls
+    ///  `onERC721Received` on `_to` and throws if the return value is not
+    ///  `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`.
+    /// @param _from The current owner of the NFT
+    /// @param _to The new owner
+    /// @param _tokenId The NFT to transfer
+    /// @param data Additional data with no specified format, sent in call to `_to`
+    pub fn safeTransferFrom(&mut self, from: AccountId, to: AccountId, token_id: String, data: String){
+        self.transferFrom(from.clone(), to.clone(), token_id.clone());
+
+        // note: if you intended to print `{` or `}`, you can escape it using `{{` or `}}`
+        // let arguments = format!("{{\"operator\": \"{}\", \"from\": \"{}\", \"token_id\": \"{}\", \"data\": \"{}\"}}", env::current_account_id().as_str(), from.as_str(), token_id, data);
+
+        let arguments = near_sdk::serde_json::json!({
+            "operator": env::current_account_id(),
+            "from": from.as_str(),
+            "token_id": token_id,
+            "data": data,
+        });
+
+        let arguments = Base64VecU8::from(arguments.to_string().into_bytes());
+
+        Promise::new(to.clone())
+        .function_call("onERC721Received".to_string(),
+            arguments.into(),
+            0,
+            GAS_FOR_FUNCTION_CALL);
+    }
+
     pub fn approve(&mut self, approved: AccountId, token_id: String){
         let owner = self.owner_ship.get(&token_id).expect("Token does not exist!");
 
@@ -292,6 +330,41 @@ impl Contract {
     pub fn get_contract_meta_data(&self) -> metadata::ContractMetaData{
         self.contract_meta.clone()
     }
+
+    // private 
+    #[private]
+    fn transfer_without_check(&mut self, from: AccountId, to: AccountId, token_id: String){
+        let mut art = self.owner_ship.get(&token_id).expect("`token_id` not exist!");
+        
+        // update `self.assets_own_info`
+        let mut cur_owned_tokens = self.assets_own_info.get(&from);
+        if let Some(mut cur_o_t) = cur_owned_tokens {
+            // delete from current owner
+            cur_o_t.remove(&token_id);
+            self.assets_own_info.insert(&from, &cur_o_t);
+
+            // add into new owner
+            let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
+                UnorderedSet::new(StorageRecord::AssetsOwnTable {
+                    account_hash: env::sha256(to.as_bytes()),
+                })
+            });
+            new_owned_tokens.insert(&token_id);
+            self.assets_own_info.insert(&to, &new_owned_tokens);
+
+            // update `self.owner_ship`
+            art.ownership = to;
+            self.owner_ship.insert(&token_id, &art);
+
+            // delete from approved
+            self.approvals.remove(&token_id);
+
+        }else{
+            env::panic_str("There's a bug, because someone has the ownership, but the asset dose not existed in the asset_own_info table!");
+        }
+    }
+    // call back
+
 }
 
 #[near_bindgen]
@@ -499,4 +572,22 @@ mod tests {
     }
 
     // TESTS HERE
+    #[test]
+    fn test_json(){
+        let s1 = "1".to_string();
+        let s2 = "2".to_string();
+        let s3 = "3".to_string();
+        let s4 = "4".to_string();
+
+        let arguments = format!("{{\"operator\":\"{}\",\"from\":\"{}\",\"token_id\":\"{}\",\"data\":\"{}\"}}", s1, s2, s3, s4);
+        let args = near_sdk::serde_json::json!({
+            "operator": s1,
+            "from": s2,
+            "token_id": s3,
+            "data": s4,
+        });
+
+        assert_eq!(arguments.to_string(), args.to_string());
+    }
+    
 }

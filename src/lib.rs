@@ -1,5 +1,5 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, BorshStorageKey, Gas, Promise, PromiseResult};
+use near_sdk::{env, near_bindgen, BorshStorageKey, Gas, Promise, PromiseResult, log};
 use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
@@ -14,7 +14,7 @@ const GAS_FOR_FUNCTION_CALL: Gas = Gas(5_000_000_000_000);
 const GAS_FOR_CALLBACK: Gas = Gas(5_000_000_000_000);
 
 #[near_bindgen]
-#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct AssetRights{
     ownership: AccountId,
@@ -106,6 +106,10 @@ pub trait NFTUsage{
 
     fn getUsageApproved(&self, token_id: String) ->AccountId;
 
+    // The `asset_right` is not mut here, but we use it as `mut` in the impl below, so that made a bug!!! 
+    // fn transfer_usage_without_check(&mut self, asset_right: AssetRights, from: AccountId, to: AccountId, token_id: String);
+    fn transfer_usage_without_check(&mut self, from: AccountId, to: AccountId, token_id: String);
+
     /// @notice The owner lend his token to someone else, the `predecessor_account_id` must be the token owner.
     /// The `usage_rights` must belong to the owner.
     /// @dev 
@@ -178,6 +182,8 @@ impl Contract {
             env::panic_str("invalid usage account!");
         }
 
+        assert_eq!(asset_rights.ownership , asset_rights.usage_rights, "the `ownership` must be the same as `usage_rights` in `mint`");
+
         self.total_supply += 1;
 
         // create the unique token_id
@@ -229,7 +235,7 @@ impl Contract {
             env::panic_str("Invalid `to` address!");
         }
 
-        let mut art = self.owner_ship.get(&token_id).expect("`token_id` not exist!");
+        let art = self.owner_ship.get(&token_id).expect("`token_id` not exist!");
         // token without approves
 
         // the owner of the token must be the same as `from`
@@ -239,45 +245,23 @@ impl Contract {
         // if not, the `predecessor_account_id` must be in the `self.approvals` of the token
         let pre_account = env::predecessor_account_id();
 
-        // the order of the arms is important
-        let authority = match pre_account{
-            _ if pre_account == from =>{
-                Authority::From
-            },
-            _ if self.approvals.get(&token_id).expect("Caller Unauthorized: 1!") == pre_account =>{
-                Authority::Approved
-            },
-            _ =>{
-                env::panic_str("Caller Unauthorized: 2");
+        if pre_account != from{
+            if self.approvals.get(&token_id).expect("Caller Ownership Unauthorized: 1!") != pre_account{
+                env::panic_str("Caller Ownership Unauthorized: 2");
             }
-        };
-
-        // update `self.assets_own_info`
-        let mut cur_owned_tokens = self.assets_own_info.get(&from);
-        if let Some(mut cur_o_t) = cur_owned_tokens {
-            // delete from current owner
-            cur_o_t.remove(&token_id);
-            self.assets_own_info.insert(&from, &cur_o_t);
-
-            // add into new owner
-            let mut new_owned_tokens = self.assets_own_info.get(&to).unwrap_or_else(||{
-                UnorderedSet::new(StorageRecord::AssetsOwnTable {
-                    account_hash: env::sha256(to.as_bytes()),
-                })
-            });
-            new_owned_tokens.insert(&token_id);
-            self.assets_own_info.insert(&to, &new_owned_tokens);
-
-            // update `self.owner_ship`
-            art.ownership = to;
-            self.owner_ship.insert(&token_id, &art);
-
-            // delete from approved
-            self.approvals.remove(&token_id);
-
-        }else{
-            env::panic_str("There's a bug, because someone has the ownership, but the asset dose not existed in the asset_own_info table!");
         }
+
+        // process leasing first
+        if !self.leasing_period.contains_key(&token_id){
+            // if there's no leasing, the `ownership` must be the same as `usage_rights`
+            assert_eq!(art.ownership, art.usage_rights, "Usage Unauthorized: if there's no leasing, the `ownership` must be the same as `usage_rights`");
+
+            // transfer the usage from `from` to `to`
+            // log!("Before usage transfer!");
+            self.transfer_usage_without_check(from.clone(), to.clone(), token_id.clone());
+        }
+
+        self.transfer_ownership_without_check(from, to, token_id);
     }
 
     /// @notice Transfers the ownership of an NFT from one address to another address
@@ -314,6 +298,16 @@ impl Contract {
             GAS_FOR_FUNCTION_CALL);
     }
 
+    /// @notice Transfers the ownership of an NFT from one address to another address
+    /// @dev This works identically to the other function with an extra data parameter,
+    ///  except this function just sets data to "".
+    /// @param _from The current owner of the NFT
+    /// @param _to The new owner
+    /// @param _tokenId The NFT to transfer
+    fn safeTransferFromNone(&mut self, from: AccountId, to: AccountId, token_id: String){
+        self.safeTransferFrom(from, to, token_id, "".to_string());
+    }
+
     pub fn approve(&mut self, approved: AccountId, token_id: String){
         let owner = self.owner_ship.get(&token_id).expect("Token does not exist!");
 
@@ -333,11 +327,11 @@ impl Contract {
 
     // private 
     #[private]
-    fn transfer_without_check(&mut self, from: AccountId, to: AccountId, token_id: String){
-        let mut art = self.owner_ship.get(&token_id).expect("`token_id` not exist!");
-        
+    fn transfer_ownership_without_check(&mut self, from: AccountId, to: AccountId, token_id: String){        
+        let mut art = self.owner_ship.get(&token_id).expect("token dose not exist!");
+
         // update `self.assets_own_info`
-        let mut cur_owned_tokens = self.assets_own_info.get(&from);
+        let cur_owned_tokens = self.assets_own_info.get(&from);
         if let Some(mut cur_o_t) = cur_owned_tokens {
             // delete from current owner
             cur_o_t.remove(&token_id);
@@ -387,7 +381,33 @@ impl NFTUsage for Contract{
             }
         }
 
+        self.transfer_usage_without_check(from, to, token_id);
+    }
+
+    #[private]
+    fn approveUsage(&mut self, approved: AccountId, token_id: String){
+        let owner = self.owner_ship.get(&token_id).expect("token does not exist!");
+
+        assert_eq!(env::predecessor_account_id(), owner.usage_rights, "Usage Unauthorized");
+
+        self.usage_approvals.insert(&token_id, &approved);
+    }
+
+    #[private]
+    fn getUsageApproved(&self, token_id: String) ->AccountId{
+        self.usage_approvals.get(&token_id).expect("token does not exist!")
+    }
+
+    #[private]
+    // The blow will make a bug, see the `trait` above
+    // fn transfer_usage_without_check(&mut self, mut asset_right: AssetRights, from: AccountId, to: AccountId, token_id: String)
+    
+    fn transfer_usage_without_check(&mut self, from: AccountId, to: AccountId, token_id: String){
+        let mut asset_right = self.owner_ship.get(&token_id).expect("token dose not exist!");
+
         let mut cur_usage_tokens = self.assets_usage_info.get(&from).expect("There's a bug, because someone has the usage_right, but the asset does not existed in the asset_usage_info table!");
+
+        // log!("In usage transfer!");
 
         // delete from current usage
         cur_usage_tokens.remove(&token_id);
@@ -408,20 +428,8 @@ impl NFTUsage for Contract{
 
         // delete from approved
         self.usage_approvals.remove(&token_id);
-    }
 
-    #[private]
-    fn approveUsage(&mut self, approved: AccountId, token_id: String){
-        let owner = self.owner_ship.get(&token_id).expect("token does not exist!");
-
-        assert_eq!(env::predecessor_account_id(), owner.usage_rights, "Usage Unauthorized");
-
-        self.usage_approvals.insert(&token_id, &approved);
-    }
-
-    #[private]
-    fn getUsageApproved(&self, token_id: String) ->AccountId{
-        self.usage_approvals.get(&token_id).expect("token does not exist!")
+        // log!("The usage is: {}", self.owner_ship.get(&token_id).expect("no token").usage_rights.as_str());
     }
 
     fn lend_usage_to(&mut self, to: AccountId, token_id: String, period: u64){

@@ -106,8 +106,6 @@ pub trait NFTUsage{
 
     fn getUsageApproved(&self, token_id: String) ->AccountId;
 
-    // The `asset_right` is not mut here, but we use it as `mut` in the impl below, so that made a bug!!! 
-    // fn transfer_usage_without_check(&mut self, asset_right: AssetRights, from: AccountId, to: AccountId, token_id: String);
     fn transfer_usage_without_check(&mut self, from: AccountId, to: AccountId, token_id: String);
 
     /// @notice The owner lend his token to someone else, the `predecessor_account_id` must be the token owner.
@@ -398,10 +396,7 @@ impl NFTUsage for Contract{
         self.usage_approvals.get(&token_id).expect("token does not exist!")
     }
 
-    #[private]
-    // The blow will make a bug, see the `trait` above
-    // fn transfer_usage_without_check(&mut self, mut asset_right: AssetRights, from: AccountId, to: AccountId, token_id: String)
-    
+    #[private]    
     fn transfer_usage_without_check(&mut self, from: AccountId, to: AccountId, token_id: String){
         let mut asset_right = self.owner_ship.get(&token_id).expect("token dose not exist!");
 

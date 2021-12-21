@@ -38,15 +38,21 @@ near view other.monkeyluffyd.testnet tokenURI '{"token_id": "4c33352ee21a5f3bf79
 
 #transfer
 near call other.monkeyluffyd.testnet transferFrom \
- '{"from": "other.monkeyluffyd.testnet", "to": "monkeyluffyd.testnet", "token_id": "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}' \
-  --account-id other.monkeyluffyd.testnet
+ '{"from": "monkeyluffyd.testnet", "to": "other.monkeyluffyd.testnet", "token_id": "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}' \
+  --account-id monkeyluffyd.testnet
 
 #approve
 near call other.monkeyluffyd.testnet approve \
- '{"approved" : "monkeyluffyd.testnet", "token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}' \
- --account_id other.monkeyluffyd.testnet
+ '{"approved" : "other.monkeyluffyd.testnet", "token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}' \
+ --account_id monkeyluffyd.testnet
 
  near view other.monkeyluffyd.testnet getApproved '{"token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}'
+
+#safeTransfer
+near call other.monkeyluffyd.testnet safeTransferFrom \
+ '{"from": "other.monkeyluffyd.testnet", "to": "hello.monkeyluffyd.testnet", "token_id": "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129", "data": "Hello wasm"}' \
+  --account-id other.monkeyluffyd.testnet
+
 
 #Usage Transfer. private currently#######################################################
 
@@ -66,8 +72,8 @@ near call other.monkeyluffyd.testnet approveUsage \
 near view other.monkeyluffyd.testnet get_leasing_period '{"token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}'
 
 near call other.monkeyluffyd.testnet lend_usage_to \
- '{"to" : "other.monkeyluffyd.testnet", "token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129", "period" : 100}' \
- --account_id monkeyluffyd.testnet
+ '{"to" : "monkeyluffyd.testnet", "token_id" : "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129", "period" : 100}' \
+ --account_id other.monkeyluffyd.testnet
 
 near call other.monkeyluffyd.testnet usage_return '{"token_id": "4c33352ee21a5f3bf79e24993946f1382f3dd0d665d6533a7dfe931c83c74129"}' \
  --account_id other.monkeyluffyd.testnet

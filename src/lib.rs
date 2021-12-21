@@ -278,10 +278,10 @@ impl Contract {
         self.transferFrom(from.clone(), to.clone(), token_id.clone());
 
         // note: if you intended to print `{` or `}`, you can escape it using `{{` or `}}`
-        // let arguments = format!("{{\"operator\": \"{}\", \"from\": \"{}\", \"token_id\": \"{}\", \"data\": \"{}\"}}", env::current_account_id().as_str(), from.as_str(), token_id, data);
+        // let arguments = format!("{{\"operator\": \"{}\", \"from\": \"{}\", \"token_id\": \"{}\", \"data\": \"{}\"}}", env::predecessor_account_id().as_str(), from.as_str(), token_id, data);
 
         let arguments = near_sdk::serde_json::json!({
-            "operator": env::current_account_id(),
+            "operator": env::predecessor_account_id(),
             "from": from.as_str(),
             "token_id": token_id,
             "data": data,

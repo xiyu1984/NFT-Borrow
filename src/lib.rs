@@ -318,6 +318,53 @@ impl Contract {
         self.approvals.get(&token_id).expect("token is not approved!")
     }
 
+    /// @notice Enable or disable approval for a third party ("operator") to manage
+    ///  all of `msg.sender`'s assets
+    /// @dev Emits the ApprovalForAll event. The contract MUST allow
+    ///  multiple operators per owner.
+    /// @param _operator Address to add to the set of authorized operators
+    /// @param _approved True if the operator is approved, false to revoke approval
+    pub fn setApprovalForAll(&mut self, operator: AccountId, approved: bool){
+        let pre_account = env::predecessor_account_id();
+
+        if pre_account == operator{
+            return;
+        }
+
+        let assets_owned = self.assets_own_info.get(&pre_account).expect("None of assets!");
+
+        if approved{
+            for token in assets_owned.iter(){
+                self.approvals.insert(&token, &operator);
+            }
+        }else{
+            for token in assets_owned.iter(){
+                self.approvals.remove(&token);
+            }
+        }
+    }
+
+    /// @notice Query if an address is an authorized operator for another address
+    /// @param _owner The address that owns the NFTs
+    /// @param _operator The address that acts on behalf of the owner
+    /// @return True if `_operator` is an approved operator for `_owner`, false otherwise
+    pub fn isApprovedForAll(&self, owner: AccountId, operator: AccountId) ->bool{
+        let assets_owned = self.assets_own_info.get(&owner).expect("None of assets!");
+
+        for token in assets_owned.iter(){
+            let approved_opt = self.approvals.get(&token);
+            if let Some(approved) = approved_opt {
+                if approved != operator{
+                    return false;
+                }
+            }else{
+                return false;
+            }
+        }
+
+        true
+    }
+
     // for test interfaces
     pub fn get_contract_meta_data(&self) -> metadata::ContractMetaData{
         self.contract_meta.clone()
@@ -362,6 +409,7 @@ impl Contract {
 #[near_bindgen]
 impl NFTUsage for Contract{
     #[private]
+    #[deny(useless_deprecated)]
     fn transferUsageFrom(&mut self, from: AccountId, to: AccountId, token_id: String){
         if !env::is_valid_account_id(to.as_bytes()){
             env::panic_str("Invalid usage account id!");
@@ -383,6 +431,7 @@ impl NFTUsage for Contract{
     }
 
     #[private]
+    #[deny(useless_deprecated)]
     fn approveUsage(&mut self, approved: AccountId, token_id: String){
         let owner = self.owner_ship.get(&token_id).expect("token does not exist!");
 
@@ -392,6 +441,7 @@ impl NFTUsage for Contract{
     }
 
     #[private]
+    #[deny(useless_deprecated)]
     fn getUsageApproved(&self, token_id: String) ->AccountId{
         self.usage_approvals.get(&token_id).expect("token does not exist!")
     }

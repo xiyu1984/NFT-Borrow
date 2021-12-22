@@ -29,7 +29,7 @@ near view nft.monkeyluffyd.testnet balanceOf '{"account_id" : "nft.monkeyluffyd.
 
 # mint
 near call nft.monkeyluffyd.testnet mint \
- '{"asset_rights": {"ownership": "nft.monkeyluffyd.testnet", "usage_rights" : "monkeyluffyd.testnet"}, "token_metadata": {"title": "hello", "description": "world", "media": "May", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
+ '{"asset_rights": {"ownership": "nft.monkeyluffyd.testnet", "usage_rights" : "nft.monkeyluffyd.testnet"}, "token_metadata": {"title": "hello", "description": "world", "media": "May", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
  --account-id nft.monkeyluffyd.testnet
 
 near view nft.monkeyluffyd.testnet tokenURI '{"token_id": "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
@@ -45,6 +45,10 @@ near call nft.monkeyluffyd.testnet approve \
  --account_id nft.monkeyluffyd.testnet
 
  near view nft.monkeyluffyd.testnet getApproved '{"token_id" : "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
+
+ near call nft.monkeyluffyd.testnet setApprovalForAll '{"operator": "monkeyluffyd.testnet", "approved": true}' --account_id nft.monkeyluffyd.testnet
+
+ near view nft.monkeyluffyd.testnet isApprovedForAll '{"owner": "nft.monkeyluffyd.testnet", "operator": "monkeyluffyd.testnet"}'
 
 #Usage Transfer. private currently#######################################################
 

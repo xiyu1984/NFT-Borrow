@@ -100,10 +100,13 @@ pub trait NFTUsage{
     /// @dev 
     /// @param usage_id The address of the next user
     /// @param token_id The ID of the token
+    #[deny(useless_deprecated)]
     fn transferUsageFrom(&mut self, from: AccountId, to: AccountId, token_id: String);
 
+    #[deny(useless_deprecated)]
     fn approveUsage(&mut self, approved: AccountId, token_id: String);
 
+    #[deny(useless_deprecated)]
     fn getUsageApproved(&self, token_id: String) ->AccountId;
 
     fn transfer_usage_without_check(&mut self, from: AccountId, to: AccountId, token_id: String);

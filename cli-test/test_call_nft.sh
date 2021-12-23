@@ -32,6 +32,14 @@ near call nft.monkeyluffyd.testnet mint \
  '{"asset_rights": {"ownership": "nft.monkeyluffyd.testnet", "usage_rights" : "nft.monkeyluffyd.testnet"}, "token_metadata": {"title": "hello", "description": "world", "media": "May", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
  --account-id nft.monkeyluffyd.testnet
 
+ near call nft.monkeyluffyd.testnet mint \
+ '{"asset_rights": {"ownership": "zation.testnet", "usage_rights" : "zation.testnet"}, "token_metadata": {"title": "Hi", "description": "zation", "media": "zation1", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
+ --account-id nft.monkeyluffyd.testnet
+
+near call nft.monkeyluffyd.testnet mint \
+ '{"asset_rights": {"ownership": "zation.testnet", "usage_rights" : "zation.testnet"}, "token_metadata": {"title": "Hi", "description": "zation2", "media": "zation2", "media_hash": "12345678", "copies": 1, "issued_at": "", "expires_at": "", "starts_at": "", "updated_at": "", "extra": "", "reference": "", "reference_hash": "12345678"}}' \
+ --account-id nft.monkeyluffyd.testnet
+
 near view nft.monkeyluffyd.testnet tokenURI '{"token_id": "79fa45feb72a9cd7ed453a0d20e83dca40c62482fe6929fb84cc0a56b5449fca"}'
 
 #transfer

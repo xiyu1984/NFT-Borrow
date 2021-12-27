@@ -7,6 +7,8 @@ I believe that in the future metaverse world, the rental of digital assets is a 
 
 First, I'll try make NFT666 from NFT721(https://eips.ethereum.org/EIPS/eip-721).
 
+The NFT666 has beed completed!
+
 ## Getting started
 
 To get started with this template:
